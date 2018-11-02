@@ -23,6 +23,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// CloseFunc hooks the close(2) system call.
+var CloseFunc = unix.Close
+
 // FD is a reference counted file descriptor.
 //
 // The zero value for FD is not usable. Values of type FD must be initialized
@@ -98,5 +101,5 @@ func (fd *FD) Close() error {
 	}
 	runtime.SetFinalizer(fd, nil)
 	fd.closed = true
-	return unix.Close(fd.sysfd)
+	return CloseFunc(fd.sysfd)
 }

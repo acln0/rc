@@ -21,6 +21,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// CloseFunc hooks the CloseHandle system call.
+var CloseFunc = windows.Close
+
 // FD is a reference counted file descriptor.
 //
 // The zero value for FD is not usable. Values of type FD must be initialized
@@ -95,5 +98,5 @@ func (fd *FD) Close() error {
 	}
 	runtime.SetFinalizer(fd, nil)
 	fd.closed = true
-	return windows.Close(fd.sysfd)
+	return CloseFunc(fd.sysfd)
 }
