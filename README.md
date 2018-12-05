@@ -1,5 +1,5 @@
-rc - `import acln.ro/rc`
-================================
+acln.ro/rc
+================
 
 [![GoDoc](https://godoc.org/acln.ro/rc?status.svg)](https://godoc.org/acln.ro/rc)
 
