@@ -1,11 +1,11 @@
 rc
 ================
 
+[![GoDoc](https://godoc.org/acln.ro/rc?status.svg)](https://godoc.org/acln.ro/rc)
+
 `import acln.ro/rc`
 
 Package rc provides reference-counted file descriptors.
-
-The documentation is available at https://godoc.org/acln.ro/rc.
 
 This package solves a very niche problem, namely managing the lifetime
 of a file descriptor which is not packaged and used as an `*os.File`,
