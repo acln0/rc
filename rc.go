@@ -14,12 +14,16 @@
 
 // Package rc provides reference counted file descriptors.
 //
-// FD is a low level construct, and is useful only under very specific,
-// rare circumstances. More often than not, callers should use the standard
-// library os package to manage raw file descriptors instead.
+// FD is a low level construct, and is useful only under very specific
+// circumstances. In most use cases, managing file descriptors using
+// the standard library os or net packages is a better choice.
 package rc
 
-import "errors"
+import (
+	"errors"
+	"runtime"
+	"sync"
+)
 
 var (
 	// ErrUninitializedFD is the error returned by FD methods when called
@@ -34,3 +38,75 @@ var (
 	// for at least the second time on a specific FD.
 	ErrMultipleInit = errors.New("rc: multiple calls to (*FD).Init")
 )
+
+// FD is a reference counted file descriptor.
+//
+// The zero value for FD is not usable. Values of type FD must be initialized
+// by calling the Init method, and must not be copied.
+//
+// Once initialized, it is safe to call methods on an FD from multiple
+// goroutines.
+//
+// Once an FD is closed, its methods return errors, and it may not be
+// re-initialized.
+type FD struct {
+	mu          sync.RWMutex
+	sysfd       uintptr
+	initialized bool
+	closed      bool
+}
+
+func (fd *FD) init(sysfd uintptr) error {
+	fd.mu.Lock()
+	defer fd.mu.Unlock()
+
+	if fd.initialized {
+		return ErrMultipleInit
+	}
+	if fd.closed {
+		return ErrClosedFD
+	}
+	fd.sysfd = sysfd
+	fd.initialized = true
+	runtime.SetFinalizer(fd, (*FD).Close)
+	return nil
+}
+
+func (fd *FD) incref() (uintptr, error) {
+	fd.mu.RLock()
+	if !fd.initialized {
+		fd.mu.RUnlock()
+		return 0, ErrUninitializedFD
+	}
+	if fd.closed {
+		fd.mu.RUnlock()
+		return 0, ErrClosedFD
+	}
+	return fd.sysfd, nil
+}
+
+// Decref decrements the reference count associated with the FD. Calls to
+// to Decref must occur after corresponding calls to Incref.
+func (fd *FD) Decref() {
+	fd.mu.RUnlock()
+}
+
+// Close waits for the reference count associated with the FD to reach zero,
+// unsets the finalizer associated with fd, then closes the file descriptor.
+//
+// Close cannot be called while holding a reference to the FD (i.e. between
+// an Incref and a Decref).
+func (fd *FD) Close() error {
+	fd.mu.Lock()
+	defer fd.mu.Unlock()
+
+	if !fd.initialized {
+		return ErrUninitializedFD
+	}
+	if fd.closed {
+		return ErrClosedFD
+	}
+	runtime.SetFinalizer(fd, nil)
+	fd.closed = true
+	return closeSysFD(fd.sysfd)
+}
