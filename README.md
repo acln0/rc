@@ -1,9 +1,7 @@
-rc
-================
+rc - `import acln.ro/rc`
+================================
 
 [![GoDoc](https://godoc.org/acln.ro/rc?status.svg)](https://godoc.org/acln.ro/rc)
-
-`import acln.ro/rc`
 
 Package rc provides reference-counted file descriptors.
 
