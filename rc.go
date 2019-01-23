@@ -81,7 +81,7 @@ func (fd *FD) Init(rawfd int, closeFunc func(int) error) error {
 // Do executes fn against the file descriptor. If Do does not return an
 // error, the file descriptor is guaranteed to be valid for the duration of
 // the call to fn.
-func (fd *FD) Do(fn func(rawfd int)) error {
+func (fd *FD) Do(fn func(rawfd int) error) error {
 	fd.mu.RLock()
 	defer fd.mu.RUnlock()
 
@@ -91,8 +91,7 @@ func (fd *FD) Do(fn func(rawfd int)) error {
 	if fd.closed {
 		return ErrClosedFD
 	}
-	fn(fd.rawfd)
-	return nil
+	return fn(fd.rawfd)
 }
 
 // Close waits for the reference count associated with the FD to reach zero,

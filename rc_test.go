@@ -15,6 +15,7 @@
 package rc_test
 
 import (
+	"errors"
 	"testing"
 
 	"acln.ro/rc/v2"
@@ -26,6 +27,7 @@ func TestFD(t *testing.T) {
 	t.Run("InitClosed", testInitClosed)
 	t.Run("DoUninitialized", testDoUninitialized)
 	t.Run("DoClosed", testDoClosed)
+	t.Run("DoReturnsInnerError", testDoReturnsInnerError)
 	t.Run("CloseUninitialized", testCloseUninitialized)
 	t.Run("DoubleClose", testDoubleClose)
 }
@@ -37,8 +39,9 @@ func testBasicInit(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	var got int
-	readRawFD := func(rawfd int) {
+	readRawFD := func(rawfd int) error {
 		got = rawfd
+		return nil
 	}
 	if err := fd.Do(readRawFD); err != nil {
 		t.Fatalf("Do: %v", err)
@@ -111,6 +114,20 @@ func testDoClosed(t *testing.T) {
 	}
 }
 
+func testDoReturnsInnerError(t *testing.T) {
+	fd := new(rc.FD)
+	if err := fd.Init(42, dummyClose); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	testError := errors.New("test error")
+	fn := func(_ int) error {
+		return testError
+	}
+	if err := fd.Do(fn); err != testError {
+		t.Fatalf("Do: want %v, got %v", testError, err)
+	}
+}
+
 func testCloseUninitialized(t *testing.T) {
 	fd := new(rc.FD)
 	switch err := fd.Close(); err {
@@ -151,6 +168,6 @@ func testDoubleClose(t *testing.T) {
 	}
 }
 
-func dummyDo(_ int) {}
+func dummyDo(_ int) error { return nil }
 
 func dummyClose(_ int) error { return nil }
