@@ -14,13 +14,11 @@ I originally built package rc to help manage eBPF map file descriptors,
 but the code is generic enough that it can be used for other similar
 purposes just as well.
 
-Windows is supported too, where, for convenience, the package deals in
-[handles](https://godoc.org/golang.org/x/sys/windows#Handle) instead
-of raw integers.
-
 ### Package version
 
-Package rc presents itself as a Go module, and is currently at v1.0.0.
+Package rc presents itself as a Go module, and is currently at v2.0.0.
+The update from v1 to v2 changed the API to be function-based, and
+removed special handling of Windows file descriptors.
 
 ### License
 

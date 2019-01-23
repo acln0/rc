@@ -1,4 +1,4 @@
-// Copyright 2018 Andrei Tudor Călin
+// Copyright 2019 Andrei Tudor Călin
 //
 // Permission to use, copy, modify, and/or distribute this software for any
 // purpose with or without fee is hereby granted, provided that the above
@@ -51,51 +51,54 @@ var (
 // re-initialized.
 type FD struct {
 	mu          sync.RWMutex
-	sysfd       uintptr
+	rawfd       int
 	initialized bool
 	closed      bool
+	closeFunc   func(int) error
 }
 
-func (fd *FD) init(sysfd uintptr) error {
+// Init initializes the file descriptor and sets a finalizer for fd, which may
+// call closeFunc if the FD goes out of scope without being closed explicitly.
+//
+// If the FD was already initialized, Init returns ErrMultipleInit.
+func (fd *FD) Init(rawfd int, closeFunc func(int) error) error {
 	fd.mu.Lock()
 	defer fd.mu.Unlock()
 
-	if fd.initialized {
-		return ErrMultipleInit
-	}
 	if fd.closed {
 		return ErrClosedFD
 	}
-	fd.sysfd = sysfd
+	if fd.initialized {
+		return ErrMultipleInit
+	}
+	fd.rawfd = rawfd
 	fd.initialized = true
+	fd.closeFunc = closeFunc
 	runtime.SetFinalizer(fd, (*FD).Close)
 	return nil
 }
 
-func (fd *FD) incref() (uintptr, error) {
+// Do executes fn against the file descriptor. If Do does not return an
+// error, the file descriptor is guaranteed to be valid for the duration of
+// the call to fn.
+func (fd *FD) Do(fn func(rawfd int)) error {
 	fd.mu.RLock()
+	defer fd.mu.RUnlock()
+
 	if !fd.initialized {
-		fd.mu.RUnlock()
-		return 0, ErrUninitializedFD
+		return ErrUninitializedFD
 	}
 	if fd.closed {
-		fd.mu.RUnlock()
-		return 0, ErrClosedFD
+		return ErrClosedFD
 	}
-	return fd.sysfd, nil
-}
-
-// Decref decrements the reference count associated with the FD. Calls to
-// to Decref must occur after corresponding calls to Incref.
-func (fd *FD) Decref() {
-	fd.mu.RUnlock()
+	fn(fd.rawfd)
+	return nil
 }
 
 // Close waits for the reference count associated with the FD to reach zero,
 // unsets the finalizer associated with fd, then closes the file descriptor.
 //
-// Close cannot be called while holding a reference to the FD (i.e. between
-// an Incref and a Decref).
+// Calling Close from inside a Do block causes a deadlock, so it is forbidden.
 func (fd *FD) Close() error {
 	fd.mu.Lock()
 	defer fd.mu.Unlock()
@@ -108,5 +111,5 @@ func (fd *FD) Close() error {
 	}
 	runtime.SetFinalizer(fd, nil)
 	fd.closed = true
-	return closeSysFD(fd.sysfd)
+	return fd.closeFunc(fd.rawfd)
 }
