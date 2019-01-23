@@ -17,7 +17,7 @@ package rc_test
 import (
 	"testing"
 
-	"acln.ro/rc"
+	"acln.ro/rc/v2"
 )
 
 func TestFD(t *testing.T) {
