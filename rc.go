@@ -54,11 +54,20 @@ var (
 // Once an FD is closed, its methods return errors, and it may not be
 // re-initialized.
 type FD struct {
+	lr *LifetimeRegistry // ok to be nil
+
 	mu          sync.RWMutex
 	rawfd       int
 	initialized bool
 	closed      bool
 	closeFunc   func(int) error
+}
+
+// TrackLifetime instructs the FD to reports its lifetime cycle to the specified
+// LifetimeRegistry. For accurate results, TrackLifetime must be called before
+// Init.
+func (fd *FD) TrackLifetime(lr *LifetimeRegistry) {
+	fd.lr = lr
 }
 
 // Init initializes the file descriptor and sets a finalizer for fd, which may
@@ -78,6 +87,7 @@ func (fd *FD) Init(rawfd int, closeFunc func(int) error) error {
 	fd.rawfd = rawfd
 	fd.initialized = true
 	fd.closeFunc = closeFunc
+	fd.lr.recordInit(rawfd)
 	runtime.SetFinalizer(fd, (*FD).Close)
 	return nil
 }
@@ -114,7 +124,9 @@ func (fd *FD) Close() error {
 	}
 	runtime.SetFinalizer(fd, nil)
 	fd.closed = true
-	return fd.closeFunc(fd.rawfd)
+	err := fd.closeFunc(fd.rawfd)
+	fd.lr.recordClose(fd.rawfd, err)
+	return err
 }
 
 // WrapSyscallError wraps an error from a call to (*FD).Do or (*FD).Close,
