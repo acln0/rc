@@ -16,6 +16,8 @@ package rc_test
 
 import (
 	"errors"
+	"os"
+	"reflect"
 	"testing"
 
 	"acln.ro/rc/v2"
@@ -30,6 +32,43 @@ func TestFD(t *testing.T) {
 	t.Run("DoReturnsInnerError", testDoReturnsInnerError)
 	t.Run("CloseUninitialized", testCloseUninitialized)
 	t.Run("DoubleClose", testDoubleClose)
+}
+
+func TestWrapSyscallError(t *testing.T) {
+	otherError := errors.New("other")
+
+	tests := []struct {
+		syscall string
+		err     error
+		want    error
+	}{
+		{
+			err:  nil,
+			want: nil,
+		},
+		{
+			err:  rc.ErrUninitializedFD,
+			want: rc.ErrUninitializedFD,
+		},
+		{
+			err:  rc.ErrClosedFD,
+			want: rc.ErrClosedFD,
+		},
+		{
+			syscall: "something",
+			err:     otherError,
+			want: &os.SyscallError{
+				Syscall: "something",
+				Err:     otherError,
+			},
+		},
+	}
+	for _, tt := range tests {
+		got := rc.WrapSyscallError(tt.syscall, tt.err)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("WrapSyscallError(%q, %#v): got %#v, want %#v", tt.syscall, tt.err, got, tt.want)
+		}
+	}
 }
 
 func testBasicInit(t *testing.T) {

@@ -21,6 +21,7 @@ package rc
 
 import (
 	"errors"
+	"os"
 	"runtime"
 	"sync"
 )
@@ -35,7 +36,7 @@ var (
 	ErrClosedFD = errors.New("rc: use of closed file descriptor")
 
 	// ErrMultipleInit is the error returned by (*FD).Init when called
-	// for at least the second time on a specific FD.
+	// Init was already called on FD.
 	ErrMultipleInit = errors.New("rc: multiple calls to (*FD).Init")
 )
 
@@ -46,6 +47,9 @@ var (
 //
 // Once initialized, it is safe to call methods on an FD from multiple
 // goroutines.
+//
+// FD is not suitable for use with blocking system calls: its internal
+// locking scheme assumes that calls to Do do not block for very long.
 //
 // Once an FD is closed, its methods return errors, and it may not be
 // re-initialized.
@@ -111,4 +115,21 @@ func (fd *FD) Close() error {
 	runtime.SetFinalizer(fd, nil)
 	fd.closed = true
 	return fd.closeFunc(fd.rawfd)
+}
+
+// WrapSyscallError wraps an error from a call to (*FD).Do or (*FD).Close,
+// with a few special cases taken into consideration:
+//
+// The sentinel error values ErrUninitializedFD and ErrClosedFD are returned
+// without wrapping. If err is nil, WrapSyscallError returns nil. Any other
+// error is wrapped using os.NewSyscallError.
+func WrapSyscallError(syscall string, err error) error {
+	switch err {
+	case nil:
+		return nil
+	case ErrUninitializedFD, ErrClosedFD:
+		return err
+	default:
+		return os.NewSyscallError(syscall, err)
+	}
 }
